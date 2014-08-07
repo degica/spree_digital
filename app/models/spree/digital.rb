@@ -9,5 +9,9 @@ module Spree
 
     attr_accessible :variant_id, :attachment
       
+    if Paperclip::Attachment.default_options[:storage] == :s3
+      attachment_definitions[:attachment][:s3_permissions] = :private
+      attachment_definitions[:attachment][:s3_headers] = { :content_disposition => 'attachment' }
+    end
   end
 end

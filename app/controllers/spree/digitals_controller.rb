@@ -33,8 +33,11 @@ module Spree
         end
       end
 
+      # Change this method for spree 1.3
+      # Because can't use find_by! method
       def digital_link
-        @link ||= DigitalLink.find_by!(secret: params[:secret])
+        # @link ||= DigitalLink.find_by!(secret: params[:secret])
+        @link ||= DigitalLink.where(secret: params[:secret]).first
       end
 
       def attachment

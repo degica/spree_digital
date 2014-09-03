@@ -1,27 +1,56 @@
 module Spree
   class DigitalsController < Spree::StoreController
     ssl_required :show
+    rescue_from ActiveRecord::RecordNotFound, with: :resource_not_found
 
     def show
-      link = DigitalLink.find_by_secret(params[:secret])
-
-      if link.present? and link.digital.attachment.present?
-        attachment = link.digital.attachment
-
+      if attachment.present?
         # don't authorize the link unless the file exists
         # the logger error will help track down customer issues easier
-
-        if File.file?(attachment.path)
-          if link.authorize!
-            send_file attachment.path, :filename => attachment.original_filename, :type => attachment.content_type and return
+        if attachment_is_file?
+          if digital_link.authorize!
+            if Paperclip::Attachment.default_options[:storage] == :s3
+              redirect_to attachment.expiring_url(Spree::DigitalConfiguration[:s3_expiration_seconds]) and return
+            else
+              send_file attachment.path, :filename => attachment.original_filename, :type => attachment.content_type and return
+            end
           end
         else
           Rails.logger.error "Missing Digital Item: #{attachment.path}"
+        end
+      elsif digital_link.digital.try(:resource_url)
+        if digital_link.authorize!
+          redirect_to digital_link.digital.resource_url and return
         end
       end
 
       render :unauthorized
     end
+
+    private
+
+      def attachment_is_file?
+        if Paperclip::Attachment.default_options[:storage] == :s3
+          attachment.exists?
+        else
+          File.file?(attachment.path)
+        end
+      end
+
+      # Change this method for spree 1.3
+      # Because can't use find_by! method
+      def digital_link
+        # @link ||= DigitalLink.find_by!(secret: params[:secret])
+        @link ||= DigitalLink.where(secret: params[:secret]).first
+      end
+
+      def attachment
+        @attachment ||= digital_link.digital.try(:attachment) if digital_link.present?
+      end
+
+      def resource_not_found
+        head status: 404
+      end
 
   end
 end
